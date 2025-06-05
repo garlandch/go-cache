@@ -13,7 +13,7 @@ import (
 func TestCacheDefaultOptions(t *testing.T) {
 	var (
 		validate   = assert.New(t)
-		cache, err = NewCache(DefaultCacheOptions)
+		cache, err = NewCache[string, string](DefaultCacheOptions)
 	)
 	defer cache.Close()
 
@@ -25,7 +25,7 @@ func TestCacheDefaultOptions(t *testing.T) {
 func TestCacheHappyPath(t *testing.T) {
 	var (
 		validate = assert.New(t)
-		cache, _ = NewCache(DefaultCacheOptions)
+		cache, _ = NewCache[string, string](DefaultCacheOptions)
 	)
 	defer cache.Close()
 
@@ -56,7 +56,7 @@ func TestCacheExpiry(t *testing.T) {
 			ItemTTL:    100 * time.Millisecond,
 			GCInterval: 1 * time.Second,
 		}
-		cache, _ = NewCache(opts)
+		cache, _ = NewCache[string, string](opts)
 	)
 	defer cache.Close()
 
@@ -73,7 +73,7 @@ func TestCacheExpiry(t *testing.T) {
 	validate.ErrorIs(err1, ErrExpiredItem)
 	validate.NoError(err2)
 
-	validate.Nil(val1)
+	validate.Empty(val1)
 	validate.NotNil(val2)
 
 	// wait -> GC ran a cycle
@@ -98,7 +98,7 @@ func TestCacheConcurrentAccess(t *testing.T) {
 			ItemTTL:    500 * time.Millisecond,
 			GCInterval: 1 * time.Second,
 		}
-		cache, _ = NewCache(opts)
+		cache, _ = NewCache[string, any](opts)
 	)
 	defer cache.Close()
 
@@ -121,7 +121,7 @@ func TestCacheConcurrentAccess(t *testing.T) {
 			go cache.Delete(key)
 		}
 		if randomBool() {
-			go cache.Set(key, i+1)
+			go cache.Set(key, i)
 		}
 		if randomBool() {
 			go cache.Get(key)

@@ -8,6 +8,7 @@ Simple in-memory, auto-expiring key-value store
 - Thread-safe
 - Automatic Cleanup w/ background Garbage Collector
 - Per-entry TTL (time-to-live)
+- Generics for Key/Value Typing
 
 ---
 
@@ -24,7 +25,7 @@ import (
 	"github.com/garlandch/go-cache/pkg/storage"
 )
 
-func useCache(cache *storage.Cache) {
+func useCache(cache *storage.Cache[string, string]) {
 	// Set
 	cache.Set("foo", "bar")
 	cache.SetWithTTL("foo2", "bar2", 1*time.Minute)
@@ -51,7 +52,7 @@ func main() {
 			GCInterval: 1 * time.Second,
 		}
 	)
-	cache, err := storage.NewCache(opts) // note – can use `storage.DefaultCacheOptions`
+	cache, err := storage.NewCache[string, string](opts) // note – can use `storage.DefaultCacheOptions`
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -60,3 +61,4 @@ func main() {
 	// sample usage
 	useCache(cache)
 }
+```

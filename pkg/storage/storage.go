@@ -8,22 +8,16 @@ import (
 )
 
 // NewCache creates auto-cleaning cache w/ config
-func NewCache(opts *Options) (*Cache, error) {
-	// sanity check cache config
-	err := opts.Validate()
-	if err != nil {
+func NewCache[K comparable, V any](opts *Options) (*Cache[K, V], error) {
+	if err := opts.Validate(); err != nil {
 		return nil, err
 	}
 
-	// plumb together instance
-	var (
-		cache = &Cache{
-			entries: make(map[string]*cacheEntry),
-			opts:    opts,
-		}
-	)
+	cache := &Cache[K, V]{
+		entries: make(map[K]*cacheEntry[V]),
+		opts:    opts,
+	}
 
-	// init garbage collection
 	gc, err := eviction.NewGarbageCollector(opts.GCInterval, cache.runCleanUp)
 	if err != nil {
 		return nil, err
@@ -31,56 +25,56 @@ func NewCache(opts *Options) (*Cache, error) {
 	cache.gc = gc
 	gc.Start()
 
-	// ready to rumble!
 	return cache, nil
 }
 
 // Set cache entry with default TTL
-func (c *Cache) Set(key string, val any) {
+func (c *Cache[K, V]) Set(key K, val V) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
-	c.entries[key] = &cacheEntry{
+	c.entries[key] = &cacheEntry[V]{
 		value:      val,
 		expiration: time.Now().Add(c.opts.ItemTTL),
 	}
 }
 
 // SetWithTTL cache entry with custom TTL
-func (c *Cache) SetWithTTL(key string, val any, ttl time.Duration) {
+func (c *Cache[K, V]) SetWithTTL(key K, val V, ttl time.Duration) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
-	c.entries[key] = &cacheEntry{
+	c.entries[key] = &cacheEntry[V]{
 		value:      val,
 		expiration: time.Now().Add(ttl),
 	}
 }
 
 // Get retrieves a value by key
-// if no valid entry, then returns ErrNotFound or ErrExpiredItem
-func (c *Cache) Get(key string) (any, error) {
+func (c *Cache[K, V]) Get(key K) (V, error) {
 	c.mu.RLock()
 	entry, exists := c.entries[key]
 	c.mu.RUnlock()
 
+	var (
+		zeroValue V
+	)
 	if !exists {
-		return nil, errors.WithMessagef(ErrNotFound, "key: %s", key)
+		return zeroValue, errors.WithMessagef(ErrNotFound, "key: %v", key)
 	}
 
-	// delete expired cacheEntry and return err
 	if entry.isExpired() {
 		c.mu.Lock()
 		delete(c.entries, key)
 		c.mu.Unlock()
-		return nil, errors.WithMessagef(ErrExpiredItem, "key: %s, expiration: %s", key, entry.expiration)
+		return zeroValue, errors.WithMessagef(ErrExpiredItem, "key: %v, expiration: %s", key, entry.expiration)
 	}
 
 	return entry.value, nil
 }
 
 // Delete single entry from cache
-func (c *Cache) Delete(key string) {
+func (c *Cache[K, V]) Delete(key K) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
@@ -88,52 +82,50 @@ func (c *Cache) Delete(key string) {
 }
 
 // Clear all entries
-func (c *Cache) Clear() {
+func (c *Cache[K, V]) Clear() {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
-	c.entries = make(map[string]*cacheEntry)
+	c.entries = make(map[K]*cacheEntry[V])
 }
 
-// Keys returns all non-expired keys in the cache
-func (c *Cache) Keys() []string {
+// Keys returns all non-expired keys
+func (c *Cache[K, V]) Keys() []K {
 	c.mu.RLock()
 	defer c.mu.RUnlock()
 
-	var (
-		results = make([]string, 0, len(c.entries))
-	)
-	for key, val := range c.entries {
-		if !val.isExpired() {
-			results = append(results, key)
+	var keys []K
+	for k, v := range c.entries {
+		if !v.isExpired() {
+			keys = append(keys, k)
 		}
 	}
-	return results
+	return keys
 }
 
 // ContainsKey checks for the existence of a non-expired entry
-func (c *Cache) ContainsKey(key string) bool {
+func (c *Cache[K, V]) ContainsKey(key K) bool {
 	_, err := c.Get(key)
 	return err == nil
 }
 
-// Size returns total num of entries (count can include expired items)
-func (c *Cache) Size() int {
+// Size returns the total number of entries (including expired)
+func (c *Cache[K, V]) Size() int {
 	c.mu.RLock()
 	defer c.mu.RUnlock()
 
 	return len(c.entries)
 }
 
-// Close stops R/W actions and the async garbage collector
-func (c *Cache) Close() {
+// Close stops the garbage collector
+func (c *Cache[K, V]) Close() {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	c.gc.Stop()
 }
 
-// runCleanUp implements interface for automatic garbage collection
-func (c *Cache) runCleanUp() (int, error) {
+// runCleanUp purges expired items
+func (c *Cache[K, V]) runCleanUp() (int, error) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 

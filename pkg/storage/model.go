@@ -23,8 +23,8 @@ var (
 )
 
 // Cache represents the in-memory cache with expiration
-type Cache struct {
-	entries map[string]*cacheEntry
+type Cache[K comparable, V any] struct {
+	entries map[K]*cacheEntry[V]
 	opts    *Options
 
 	gc garbageCollector
@@ -32,8 +32,8 @@ type Cache struct {
 }
 
 // cacheEntry contains values of a single entry
-type cacheEntry struct {
-	value      any
+type cacheEntry[V any] struct {
+	value      V
 	expiration time.Time
 }
 
@@ -85,6 +85,6 @@ func (o *Options) backfillDefaults() {
 }
 
 // isExpired helper utility for cache entry
-func (ce *cacheEntry) isExpired() bool {
+func (ce *cacheEntry[V]) isExpired() bool {
 	return time.Now().After(ce.expiration)
 }
