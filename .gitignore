@@ -1,0 +1,19 @@
+# Covers JetBrains IDE: GoLand + VSCode
+
+# User local IDEA configuration files
+.idea/
+.run/
+
+# IntelliJ project
+*.iml
+
+# User local IDEA run configurations
+.run/
+
+## File-based project format:
+*.iws
+
+# VSCode langserver artifacts
+/bin/
+.DS_Store
+/src/main/kotlin/com/sourcegraph/cody/agent/protocol_generated/*
